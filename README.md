@@ -365,7 +365,7 @@ Some important information to read before applying the template:
 * RDS Multi-Region backup for DR 
 * Add IAM auth to RDS and secret rotation
 * Switch to AWS Secrets Manager secret insted of AWS Systems Manager Parameter Store in the Ghost Fargete template (The RDS Secret already managed) 
-* Tune AWS CloudFront parameters configure logs, etc.
+* Tune AWS CloudFront parameters, configure logs, etc.
 
 ---
 ### Authors
