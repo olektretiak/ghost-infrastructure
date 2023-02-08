@@ -30,6 +30,7 @@
 Before continuing you will need to ensure you have the following prerequisites:
 * DNS hosted zone stored in the AWS Route53 (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingHostedZone.html)
 * SSL Cerrtificate stored in the AWS Certificate Manager (https://docs.aws.amazon.com/acm/latest/userguide/gs.html)
+> Use wiledcard for Multi-environments
 * GitHub user token (https://github.com/settings/tokens)
 
 ---
@@ -353,6 +354,7 @@ Some important information to read before applying the template:
 
 * Integrate secure image storage into Ghost using Amazon S3 - deployed using a custom storage adapter (https://ghost.org/integrations/amazon-s3/)
 * InfraExecutionRole - allow only needed resours usage as now it uses 'arn:aws:iam::aws:policy/AdministratorAccess'
+* Implement git branching stratagy on git repositories and CI/CD
 * Move Production deploymnt to separated AWS account
 * AWS Multi-Region ECS Cluster, AWS Multi-Region RDS read replica
  
