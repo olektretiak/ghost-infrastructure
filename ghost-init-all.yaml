@@ -146,7 +146,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-    Default: 'false'
+    Default: 'true'
 
   DevDeploymentPrefix:
     Default: ghost-dev
@@ -207,7 +207,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-    Default: 'false'
+    Default: 'true'
 
   StageDeploymentPrefix:
     Default: ghost-stage
@@ -270,7 +270,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-    Default: 'false'
+    Default: 'true'
   ProdDeploymentPrefix:
     Default: ghost-prod
     Type: String
