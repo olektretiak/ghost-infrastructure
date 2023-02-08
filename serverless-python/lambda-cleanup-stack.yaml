@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  LambdaBuildStackName:
+    Type: String
+Resources: 
+  GhostCleanAllPostsFunction:
+
+    Properties:
+      Code:
+        S3Bucket: !ImportValue 
+              'Fn::Sub': '${LambdaBuildStackName}-CRS3Bucket'
+        S3Key: cleanup-posts-lambda.zip
+      Handler: fn_posts_deleteion.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - GhostCleanAllPostsLambdaExecutionRole
+        - Arn
+      Runtime: python3.9
+      Timeout: '180'
+    Type: 'AWS::Lambda::Function'
+
+  GhostCleanAllPostsLambdaExecutionPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource:
+              - '*'
+        Version: 2012-10-17
+      PolicyName: lambda-execution
+      Roles:
+        - !Ref GhostCleanAllPostsLambdaExecutionRole
+    Type: 'AWS::IAM::Policy'
+  GhostCleanAllPostsLambdaExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+    Type: 'AWS::IAM::Role'

@@ -1,0 +1,710 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Ghost Project init CloudFormation template.
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+    - Label:
+        default: 'General values'
+      Parameters:
+      - KeypairName
+      - CloudFormationS3Bucket
+      - ArtifactsBucket
+      - DnsHostedZoneID
+      - AcmCertificateArn
+      - EcrRepositoryName
+
+    - Label:
+        default: 'GitHub config'
+      Parameters:
+      - GitHubOwner
+      - GitHubRepoInfrastructure
+      - GitHubInfrastructureBranch
+      - GitHubRepoGhost
+      - GitHubGhostBranch
+      - GitHubOwnerToken
+
+    - Label:
+        default: 'Develpment env config'
+      Parameters:
+      - DeployDev
+      - DevGhostDNS
+      - DevDeployCloudFront
+      - DevDeploymentPrefix
+      - DevDBAllocatedStorage
+      - DevMysqlUser
+      - DevDBClass
+      - DevDBMultiAZ
+
+    - Label:
+        default: 'Staging env config'
+      Parameters:
+      - DeployStage
+      - StageGhostDNS
+      - StageDeployCloudFront
+      - StageDeploymentPrefix
+      - StageDBAllocatedStorage
+      - StageMysqlUser
+      - StageDBClass
+      - StageDBMultiAZ
+
+    - Label:
+        default: 'Production env config'
+      Parameters:
+      - DeployProd
+      - ProdGhostDNS
+      - ProdDeployCloudFront
+      - ProdDeploymentPrefix
+      - ProdDBAllocatedStorage
+      - ProdMysqlUser
+      - ProdDBClass
+      - ProdDBMultiAZ
+
+Conditions:
+  DeployDevCondition: !Not 
+    - !Equals 
+      - !Ref DeployDev
+      - 'false'
+  DeployStageCondition: !Not 
+    - !Equals 
+      - !Ref DeployStage
+      - 'false'
+  DeployProdCondition: !Not 
+    - !Equals 
+      - !Ref DeployProd
+      - 'false'
+
+
+Parameters:
+  EcrRepositoryName:
+    Type: String
+    Default: ghost
+  DnsHostedZoneID:
+    Description: An Amazon Route 53 hosted zone ID, such as Z23YXV4OVPL04A
+    Type: AWS::Route53::HostedZone::Id
+
+  AcmCertificateArn:
+    Description: ACM certificate ARN
+    Type: String
+    AllowedPattern : ".+"
+
+  GitHubOwner:
+    Type: String
+    Description: GitHub repo owner.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: olektretiak
+
+  GitHubRepoInfrastructure:
+    Type: String
+    Description: Ghost github infrastructure repo.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: ghost-infrastructure
+
+  GitHubInfrastructureBranch:
+    Type: String
+    Description: Ghost github infrastructure branch.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: main
+
+  GitHubRepoGhost:
+    Type: String
+    Description: Ghost github source repo.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: ghost-development
+
+  GitHubGhostBranch:
+    Type: String
+    Description: Ghost github source branch.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: main
+
+  GitHubOwnerToken:
+    Type: String
+    NoEcho: true
+    MinLength: 40
+    MaxLength: 40
+    AllowedPattern : ".+"
+    Description: >
+      Token for the user specified above. (https://github.com/settings/tokens).
+    # Default: AWS::NoValue
+
+  DeployDev:
+    AllowedValues:
+      - 'small'
+      - 'medium'
+      - 'large'
+    Default: 'small'    
+    Description: >-
+      Whether to deploy Development env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+    Type: String
+
+  DevDeployCloudFront:
+    Description: Whether to deploy CloudFront
+    Type: String 
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: 'false'
+
+  DevDeploymentPrefix:
+    Default: ghost-dev
+    Type: String
+  DevGhostDNS:
+    Description: Set an A record 
+    AllowedPattern : ".+"
+    Type: String
+  DevMysqlUser:
+    Default: 'ghost'
+    Type: String
+    Description: MySQL RDS username
+
+  DevDBAllocatedStorage:
+    ConstraintDescription: must be between 5 and 1024 GB.
+    Default: '5'
+    Description: The size of the database (GB)
+    MaxValue: '1024'
+    MinValue: '5'
+    Type: Number
+  DevDBClass:
+    AllowedValues:
+      - db.t2.small
+      - db.t2.large
+      - db.t2.xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m2.2xlarge
+    ConstraintDescription: must select a valid database instance type.
+    Default: db.t2.small
+    Description: Database instance class
+    Type: String
+  DevDBMultiAZ:
+    Default: 'false'
+    Description: Should the RDS be MultiAZ (true/false)
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+
+  DeployStage:
+    AllowedValues:
+      - 'false'
+      - 'small'
+      - 'medium'
+      - 'large'
+    Default: 'false'
+    Description: >-
+      Whether to deploy Stage env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+    Type: String
+
+  StageDeployCloudFront:
+    Description: Whether to deploy CloudFront
+    Type: String 
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: 'false'
+
+  StageDeploymentPrefix:
+    Default: ghost-stage
+    Type: String
+  StageGhostDNS:
+    Description: Set an A record 
+    # AllowedPattern : ".+"
+    Type: String
+  StageMysqlUser:
+    Default: 'ghost'
+    Type: String
+    Description: MySQL RDS username
+
+  StageDBAllocatedStorage:
+    ConstraintDescription: must be between 5 and 1024 GB.
+    Default: '5'
+    Description: The size of the database (GB)
+    MaxValue: '1024'
+    MinValue: '5'
+    Type: Number
+
+  StageDBClass:
+    AllowedValues:
+      - db.t2.small
+      - db.t2.large
+      - db.t2.xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m2.2xlarge
+    ConstraintDescription: must select a valid database instance type.
+    Default: db.t2.small
+    Description: Database instance class
+    Type: String
+
+  StageDBMultiAZ:
+    Default: 'false'
+    Description: Should the RDS be MultiAZ (true/false)
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+
+  DeployProd:
+    Type: String
+    AllowedValues:
+      - 'false'
+      - 'small'
+      - 'medium'
+      - 'large'
+    Default: 'false'
+    Description: >-
+      Whether to deploy Production env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+
+  ProdDeployCloudFront:
+    Description: Whether to deploy CloudFront
+    Type: String 
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: 'false'
+  ProdDeploymentPrefix:
+    Default: ghost-prod
+    Type: String
+  ProdGhostDNS:
+    Description: Set an A record 
+    # AllowedPattern : ".+"
+    Type: String
+  ProdMysqlUser:
+    Default: 'ghost'
+    Type: String
+    Description: MySQL RDS username
+  ProdDBAllocatedStorage:
+    ConstraintDescription: must be between 5 and 1024 GB.
+    Default: '5'
+    Description: The size of the database (GB)
+    MaxValue: '1024'
+    MinValue: '5'
+    Type: Number
+  ProdDBClass:
+    AllowedValues:
+      - db.t2.small
+      - db.t2.large
+      - db.t2.xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m2.2xlarge
+    ConstraintDescription: must select a valid database instance type.
+    Default: db.t2.small
+    Description: Database instance class
+    Type: String
+  ProdDBMultiAZ:
+    Default: 'true'
+    Description: Should the RDS be MultiAZ (true/false)
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+
+  CloudFormationS3Bucket:
+    Default: 'ghost-cloudfromation-templates'
+    Description: >-
+      CloudFrmation Templates S3 Bucket must be uniq name 
+    Type: String
+  ArtifactsBucket:
+    Default: 'ghost-pipeline-artifacts'
+    Description: >-
+      Build artifacts S3 Bucket 
+    Type: String
+  KeypairName:
+    Description: The name of your EC2 KeyPair for SSH.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+
+  ActionMode:
+    Type: String
+    Default: REPLACE_ON_FAILURE
+    AllowedValues:
+      - CHANGE_SET_EXECUTE
+      - CHANGE_SET_REPLACE
+      - DELETE_ONLY
+      - REPLACE_ON_FAILURE
+
+
+Resources:
+  TemplatesS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref CloudFormationS3Bucket
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+
+  BuildArtifactsBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref ArtifactsBucket
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+
+  # CodePipeline definition and required roles
+  CFNPipelinePolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+          Description: CloudFormation Pipeline Execution Policy
+          Path: "/"
+          PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                  Effect: Allow
+                  Action:
+                      - 'cloudformation:CreateStack'
+                      - 'cloudformation:DescribeStacks'
+                      - 'cloudformation:DeleteStack'
+                      - 'cloudformation:UpdateStack'
+                      - 'cloudformation:CreateChangeSet'
+                      - 'cloudformation:ExecuteChangeSet'
+                      - 'cloudformation:DeleteChangeSet'
+                      - 'cloudformation:DescribeChangeSet'
+                      - 'cloudformation:SetStackPolicy'
+                      - 'cloudformation:SetStackPolicy'
+                      - 'cloudformation:ValidateTemplate'
+                      - 'codebuild:StartBuild'
+                      - 'codebuild:BatchGetBuilds'
+                      - 'codedeploy:GetApplication'
+                      - 'codedeploy:GetDeploymentGroup'
+                      - 'codedeploy:ListApplications'
+                      - 'codedeploy:ListDeploymentGroups'
+                  Resource: "*"
+  PipelineExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+          AssumeRolePolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - 'sts:AssumeRole'
+                  Effect: Allow
+                  Principal:
+                    Service:
+                      - codepipeline.amazonaws.com
+          Path: /
+          ManagedPolicyArns:
+              - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+              - 'arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess'
+              - 'arn:aws:iam::aws:policy/AWSCodeDeployFullAccess'
+              - !Ref CFNPipelinePolicy
+          Policies:
+              - PolicyName: CodePipelineAccess
+                PolicyDocument:
+                  Version: '2012-10-17'
+                  Statement:
+                      - Action:
+                          - 'iam:PassRole'
+                          - 'lambda:InvokeFunction'
+                          - 'lambda:ListFunctions'
+                          - 'lambda:InvokeAsyc'
+                        Effect: Allow
+                        Resource: '*'
+
+  InfraExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+          AssumeRolePolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Action:
+                  - 'sts:AssumeRole'
+                  Effect: Allow
+                  Principal:
+                    Service:
+                      - cloudformation.amazonaws.com
+          Path: /
+          ManagedPolicyArns:
+              - 'arn:aws:iam::aws:policy/AdministratorAccess'
+          Policies:
+              - PolicyName: CloudfromationlineAccess
+                PolicyDocument:
+                  Version: '2012-10-17'
+                  Statement:
+                      - Action:
+                          - 'iam:PassRole'
+                        Effect: Allow
+                        Resource: '*'
+
+
+  GhostInitPipeline:
+      Type: AWS::CodePipeline::Pipeline
+      Properties:
+          ArtifactStores:
+            -
+              Region: !Ref 'AWS::Region'
+              ArtifactStore:
+                Location: !Ref BuildArtifactsBucket
+                Type: S3
+          Name: !Sub "${AWS::StackName}"
+          RoleArn: !GetAtt PipelineExecutionRole.Arn
+          Stages:
+              - Name: GetGitSource
+                Actions:
+                  - Name: CodeRepo
+                    ActionTypeId:
+                      Category: Source
+                      Owner: ThirdParty
+                      Provider: GitHub
+                      Version: 1
+                    Configuration:
+                      Owner: !Ref GitHubOwner
+                      Repo: !Ref GitHubRepoInfrastructure
+                      Branch: !Ref GitHubInfrastructureBranch
+                      OAuthToken: !Ref GitHubOwnerToken
+                      PollForSourceChanges: 'false' # Changing this parameter to false turns off periodic checks so you can use event-based change detection only
+                    OutputArtifacts:
+                      - Name: SourceArtifact
+                    RunOrder: 1
+
+              - Name: CopyCloudFormationtemplates
+                Actions:
+                  - Name: Deploy
+                    ActionTypeId:
+                      Category: Deploy
+                      Owner: AWS
+                      Provider: S3
+                      Version: 1
+                    Configuration:
+                      BucketName: !Ref TemplatesS3Bucket
+                      Extract: 'true'
+                    RunOrder: 1
+                    InputArtifacts:
+                      - Name: SourceArtifact
+              - Name: DeployLambdaBuildStack
+                Actions: 
+                  - Name: LambdaBuildStackRollout
+                    Region: !Ref 'AWS::Region'
+                    ActionTypeId:
+                      Category: Deploy
+                      Owner: AWS
+                      Provider: CloudFormation
+                      Version: 1
+                    Configuration:
+                      ActionMode: !Ref ActionMode
+                      RoleArn: !GetAtt InfraExecutionRole.Arn
+                      StackName: lambda-build
+                      TemplatePath: !Sub SourceArtifact::serverless-python/lamda-build-stack.yaml
+                      Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                      ParameterOverrides: !Sub |
+                        {
+                            "GitHubRepoInfrastructure": "${GitHubRepoInfrastructure}",
+                            "GitHubOwnerToken": "${GitHubOwnerToken}",
+                            "GitHubOwner":"${GitHubOwner}"
+                        }
+                    InputArtifacts:
+                      - Name: SourceArtifact
+                    RunOrder: 1
+              - Name: DeployDev
+                Actions: 
+                  - Name: DevEnvDeployment
+                    Region: !Ref 'AWS::Region'
+                    ActionTypeId:
+                      Category: Deploy
+                      Owner: AWS
+                      Provider: CloudFormation
+                      Version: 1
+                    Configuration:
+                      ActionMode: !Ref ActionMode
+                      RoleArn: !GetAtt InfraExecutionRole.Arn
+                      StackName: !Ref DevDeploymentPrefix
+                      TemplatePath: !Sub SourceArtifact::cloudformation/infrastructire.yaml
+                      Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                      ParameterOverrides: !Sub |
+                        {
+                            "EnvPrefix": "${DevDeploymentPrefix}",
+                            "CloudFormationS3Bucket": "${TemplatesS3Bucket}",
+                            "InitStackName": "${AWS::StackName}",
+                            "InitStackID": "${AWS::StackId}",
+                            "KeypairName":  "${KeypairName}",
+                            "FargateTaskSize": "${DeployDev}",
+                            "AcmCertificateArn": "${AcmCertificateArn}",
+                            "DnsHostedZoneID": "${DnsHostedZoneID}",
+                            "EnvDomainName": "${DevGhostDNS}",
+                            "DeployCloudFront": "${DevDeployCloudFront}",
+                            "DBAllocatedStorage": "${DevDBAllocatedStorage}",
+                            "MysqlUser": "${DevMysqlUser}",
+                            "DBClass": "${DevDBClass}",
+                            "DBMultiAZ": "${DevDBMultiAZ}"
+                        }
+                    InputArtifacts:
+                      - Name: SourceArtifact
+                    RunOrder: 1
+              - !If
+                - DeployStageCondition
+                - Name: DeployStage
+                  Actions:                   
+                    - Name: DeployStageApproval
+                      ActionTypeId:
+                        Category: Approval
+                        Owner: AWS
+                        Version: 1
+                        Provider: Manual
+                      RunOrder: 1 
+                    - Name: StageEnvDeployment
+                      Region: !Ref 'AWS::Region'
+                      ActionTypeId:
+                        Category: Deploy
+                        Owner: AWS
+                        Provider: CloudFormation
+                        Version: 1
+                      Configuration:
+                        ActionMode: !Ref ActionMode
+                        RoleArn: !GetAtt InfraExecutionRole.Arn
+                        StackName: !Ref StageDeploymentPrefix
+                        TemplatePath: !Sub SourceArtifact::cloudformation/infrastructire.yaml
+                        Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                        ParameterOverrides: !Sub |
+                          {
+                            "EnvPrefix": "${StageDeploymentPrefix}",
+                            "CloudFormationS3Bucket": "${TemplatesS3Bucket}",
+                            "InitStackName": "${AWS::StackName}",
+                            "InitStackID": "${AWS::StackId}",
+                            "KeypairName":  "${KeypairName}",
+                            "FargateTaskSize": "${DeployStage}",
+                            "AcmCertificateArn": "${AcmCertificateArn}",
+                            "DnsHostedZoneID": "${DnsHostedZoneID}",
+                            "EnvDomainName": "${StageGhostDNS}",
+                            "DeployCloudFront": "${StageDeployCloudFront}",
+                            "DBAllocatedStorage": "${StageDBAllocatedStorage}",
+                            "MysqlUser": "${StageMysqlUser}",
+                            "DBClass": "${StageDBClass}",
+                            "DBMultiAZ": "${StageDBMultiAZ}"
+                          }
+                      InputArtifacts:
+                        - Name: SourceArtifact
+                      RunOrder: 2
+                - !Ref AWS::NoValue
+              - !If
+                - DeployProdCondition
+                - Name: DeployStage
+                  Actions: 
+                    - Name: DeployProdApproval
+                      ActionTypeId:
+                        Category: Approval
+                        Owner: AWS
+                        Version: 1
+                        Provider: Manual
+                      RunOrder: 1
+                    - Name: ProdEnvDeployment
+                      Region: !Ref 'AWS::Region'
+                      ActionTypeId:
+                        Category: Deploy
+                        Owner: AWS
+                        Provider: CloudFormation
+                        Version: 1
+                      Configuration:
+                        ActionMode: !Ref ActionMode
+                        RoleArn: !GetAtt InfraExecutionRole.Arn
+                        StackName: !Ref ProdDeploymentPrefix
+                        TemplatePath: !Sub SourceArtifact::cloudformation/infrastructire.yaml
+                        Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                        ParameterOverrides: !Sub |
+                          {
+                            "EnvPrefix": "${ProdDeploymentPrefix}",
+                            "CloudFormationS3Bucket": "${TemplatesS3Bucket}",
+                            "InitStackName": "${AWS::StackName}",
+                            "InitStackID": "${AWS::StackId}",
+                            "KeypairName":  "${KeypairName}",
+                            "FargateTaskSize": "${DeployProd}",
+                            "AcmCertificateArn": "${AcmCertificateArn}",
+                            "DnsHostedZoneID": "${DnsHostedZoneID}",
+                            "EnvDomainName": "${ProdGhostDNS}",
+                            "DeployCloudFront": "${ProdDeployCloudFront}",
+                            "DBAllocatedStorage": "${ProdDBAllocatedStorage}",
+                            "MysqlUser": "${ProdMysqlUser}",
+                            "DBClass": "${ProdDBClass}",
+                            "DBMultiAZ": "${ProdDBMultiAZ}"
+                          }
+                      InputArtifacts:
+                        - Name: SourceArtifact
+                      RunOrder: 2
+                - !Ref AWS::NoValue
+              - Name: DeployGhostPipeline
+                Actions: 
+                  - Name: DepoloyDevPipelines
+                    Region: !Ref 'AWS::Region'
+                    ActionTypeId:
+                      Category: Deploy
+                      Owner: AWS
+                      Provider: CloudFormation
+                      Version: 1
+                    Configuration:
+                      ActionMode: !Ref ActionMode
+                      RoleArn: !GetAtt InfraExecutionRole.Arn
+                      StackName: ghost-development-pipelines
+                      TemplatePath: !Sub SourceArtifact::cloudformation/CPCB.yaml
+                      Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                      ParameterOverrides: !Sub |
+                        {
+                            "EcrRepositoryName": "${EcrRepositoryName}",
+                            "GitHubOwner": "${GitHubOwner}",
+                            "GitHubRepoGhost": "${GitHubRepoGhost}",
+                            "GitHubGhostBranch": "${GitHubGhostBranch}",
+                            "GitHubOwnerToken":  "${GitHubOwnerToken}",
+                            "DeployDev": "${DeployDev}",
+                            "DevDeploymentPrefix": "${DevDeploymentPrefix}",
+                            "DeployStage": "${DeployStage}",
+                            "StageDeploymentPrefix": "${StageDeploymentPrefix}",
+                            "DeployProd": "${DeployProd}",
+                            "ProdDeploymentPrefix": "${ProdDeploymentPrefix}"
+                        }
+                    InputArtifacts:
+                      - Name: SourceArtifact
+                    RunOrder: 1
+              - Name: DeployLambdaCleanupStack
+                Actions: 
+                  - Name: LambdaCleanupStack
+                    Region: !Ref 'AWS::Region'
+                    ActionTypeId:
+                      Category: Deploy
+                      Owner: AWS
+                      Provider: CloudFormation
+                      Version: 1
+                    Configuration:
+                      ActionMode: !Ref ActionMode
+                      RoleArn: !GetAtt InfraExecutionRole.Arn
+                      StackName: lambda-cleanaup-function
+                      TemplatePath: !Sub SourceArtifact::serverless-python/lambda-cleanup-stack.yaml
+                      Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                      ParameterOverrides: !Sub |
+                        {
+                            "LambdaBuildStackName": "lambda-build"
+                        }
+                    InputArtifacts:
+                      - Name: SourceArtifact
+                    RunOrder: 1
+  InitPipelineWebhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOwnerToken
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: 'refs/heads/{Branch}'
+      TargetPipeline: !Ref GhostInitPipeline
+      TargetAction: CodeRepo
+      Name: !Sub "${AWS::StackName}-Webhook"
+      TargetPipelineVersion: !GetAtt GhostInitPipeline.Version
+      RegisterWithThirdParty: true
+
+Outputs:
+  CloudFormationS3Bucket:
+    Description: Name of the CloudFormation source S3 bucket
+    Value: !Ref CloudFormationS3Bucket
+  InitPipelineWebhookURL:
+    Value: !GetAtt InitPipelineWebhook.Url

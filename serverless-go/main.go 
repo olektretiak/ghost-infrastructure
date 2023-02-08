@@ -1,0 +1,68 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"github.com/aws/aws-lambda-go/lambda"
+	"os"
+
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	ApiDomainEnvName = "API_URL"
+	ApiKeyEnvName    = "API_KEY"
+)
+
+type Config struct {
+	Url string
+	Key string
+}
+
+func main() {
+	lambda.Start(clearPostsHandler)
+}
+
+func clearPostsHandler(ctx context.Context) error {
+	conf, err := readConfig(ctx)
+	if err != nil {
+		log.Err(err).Msg("reading config from env variables error")
+		return err
+	}
+
+	tg := NewTokenGenerator()
+	token, err := tg.GenerateToken(conf.Key)
+	if err != nil {
+		log.Err(err).Msg("generation auth token error")
+		return err
+	}
+
+	client := NewBlogClient(conf.Url, token)
+	ids, err := client.GetAllPostsIDs(ctx)
+	if err != nil {
+		log.Err(err).Msg("getting all available posts id's error")
+		return err
+	}
+
+	if err := client.DeletePosts(ctx, ids); err != nil {
+		log.Err(err).Msg("deletion all available posts error")
+	}
+
+	return nil
+}
+
+func readConfig(_ context.Context) (Config, error) {
+	c := Config{}
+
+	c.Url = os.Getenv(ApiDomainEnvName)
+	if c.Url == "" {
+		return Config{}, errors.New("API_URL env variable not set")
+	}
+
+	c.Key = os.Getenv(ApiKeyEnvName)
+	if c.Key == "" {
+		return Config{}, errors.New("API_KEY env variable not set")
+	}
+
+	return c, nil
+}

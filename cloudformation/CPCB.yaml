@@ -1,0 +1,562 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Ghost development init CloudFormation template.
+
+Conditions:
+  DeployDevCondition: !Not 
+    - !Equals 
+      - !Ref DeployDev
+      - 'false'
+  DeployStageCondition: !Not 
+    - !Equals 
+      - !Ref DeployStage
+      - 'false'
+  DeployProdCondition: !Not 
+    - !Equals 
+      - !Ref DeployProd
+      - 'false'
+
+Parameters:
+  EcrRepositoryName:
+    Type: String
+    Default: ghost
+  GitHubOwner:
+    Type: String
+    Description: GitHub repo owner.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: olektretiak
+
+  GitHubRepoGhost:
+    Type: String
+    Description: Ghost github source repo.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: ghost-development
+
+  GitHubGhostBranch:
+    Type: String
+    Description: Ghost github source branch.
+    AllowedPattern: "[A-Za-z0-9-]+"
+    Default: main
+
+  GitHubOwnerToken:
+    Type: String
+    NoEcho: true
+    MinLength: 40
+    MaxLength: 40
+    AllowedPattern : ".+"
+    Description: >
+      Token for the user specified above. (https://github.com/settings/tokens).
+    # Default: AWS::NoValue
+
+  DeployDev:
+    AllowedValues:
+      - 'small'
+      - 'medium'
+      - 'large'
+    Default: 'small'    
+    Description: >-
+      Whether to deploy Development env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+    Type: String
+
+
+  DevDeploymentPrefix:
+    Default: ghost-dev
+    Type: String
+  DeployStage:
+    AllowedValues:
+      - 'false'
+      - 'small'
+      - 'medium'
+      - 'large'
+    Description: >-
+      Whether to deploy Stage env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+    Type: String
+
+  StageDeploymentPrefix:
+    Default: ghost-stage
+    Type: String
+
+  DeployProd:
+    Type: String
+    AllowedValues:
+      - 'false'
+      - 'small'
+      - 'medium'
+      - 'large'
+    Description: >-
+      Whether to deploy Production env infrastructure. 
+      small: 0.5 vCPU, 1Gb RAM
+      medium: 1 vCPU, 2Gb RAM
+      large: 2 vCPU, 4Gb RAM
+
+  ProdDeploymentPrefix:
+    Default: ghost-prod
+    Type: String
+
+
+Resources:
+
+  Repository:
+    Properties:
+      RepositoryName: !Ref EcrRepositoryName
+    Type: 'AWS::ECR::Repository'
+
+  CloudFormationServicePolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: 'iam:PassRole'
+            Effect: Allow
+            Resource: '*'
+          - Action:
+              - secretsmanager:GetSecretValue
+              - kms:Decrypt
+              - kms:DescribeKey
+              - 'ecs:*'
+            Effect: Allow
+            Resource: '*'
+        Version: 2012-10-17
+      PolicyName: CloudFormationServicePolicy
+      Roles:
+        - !Ref CloudFormationServiceRole
+    Type: 'AWS::IAM::Policy'
+  CloudFormationServiceRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+    Type: 'AWS::IAM::Role'
+
+  CodePipelineServicePolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: 'iam:PassRole'
+            Effect: Allow
+            Resource: '*'
+          - Action:
+              - 'codebuild:StartBuild'
+              - 'codebuild:BatchGetBuilds'
+            Effect: Allow
+            Resource:
+              - !Join 
+                - ''
+                - - 'arn:aws:codebuild:'
+                  - !Ref 'AWS::Region'
+                  - ':'
+                  - !Ref 'AWS::AccountId'
+                  - ':project/'
+                  - !Ref GhostContainerBuildProject
+          - Action:
+              - 's3:ListBucket'
+            Effect: Allow
+            Resource:
+              - !Join 
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref GhostPipelineBucket
+          - Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Join 
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref GhostPipelineBucket
+                  - /*
+          - Action:
+              - 'cloudformation:CreateStack'
+              - 'cloudformation:DeleteStack'
+              - 'cloudformation:DescribeStacks'
+              - 'cloudformation:UpdateStack'
+              - 'cloudformation:CreateChangeSet'
+              - 'cloudformation:DeleteChangeSet'
+              - 'cloudformation:DescribeChangeSet'
+              - 'cloudformation:ExecuteChangeSet'
+              - 'cloudformation:SetStackPolicy'
+              - 'cloudformation:ValidateTemplate'
+            Effect: Allow
+            Resource: '*'
+        Version: 2012-10-17
+      PolicyName: CodePipelineServicePolicy
+      Roles:
+        - !Ref CodePipelineServiceRole
+    Type: 'AWS::IAM::Policy'
+  CodePipelineServiceRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+    Type: 'AWS::IAM::Role'
+  GhostPipeline:
+    DependsOn: 
+      - CloudFormationServicePolicy
+      - CodePipelineServicePolicy
+      - CodePipelineServiceRole
+    Properties:
+      ArtifactStore:
+        Location: !Ref GhostPipelineBucket
+        Type: S3
+      RoleArn: !GetAtt 
+        - CodePipelineServiceRole
+        - Arn
+      Stages:
+        - Name: GetGitSource
+          Actions:
+            - Name: CodeRepo
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepoGhost
+                Branch: !Ref GitHubGhostBranch
+                OAuthToken: !Ref GitHubOwnerToken
+                PollForSourceChanges: 'false' # Changing this parameter to false turns off periodic checks so you can use event-based change detection only
+              OutputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Actions:
+            - ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref GhostContainerBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              Name: BuildDockerImage
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: '1'
+          Name: BuildGhostImage
+        - Actions:
+            - ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_IAM
+                ParameterOverrides: !Join 
+                  - ''
+                  - - '{'
+                    - '"Cluster"'
+                    - ':'
+                    - '"'
+                    - !Ref DevDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"InfraStackName"'
+                    - ':'
+                    - '"'
+                    - !Ref DevDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"FargateTaskSize"'
+                    - ':'
+                    - '"'
+                    - !Ref DeployDev
+                    - '"'
+                    - ','
+                    - '"GhostImage"'
+                    - ':'
+                    - >-
+                      {"Fn::GetParam" :
+                      ["BuildOutput","images.json","imageUri"]}
+                    - '}'
+                RoleArn: !GetAtt 
+                  - CloudFormationServiceRole
+                  - Arn
+                StackName: !Sub '${DevDeploymentPrefix}-fargete'
+                TemplatePath: 'BuildOutput::fargate-deployment.yaml'
+              InputArtifacts:
+                - Name: BuildOutput
+              Name: DeployToDev
+              RunOrder: '1'
+          Name: GhostDevDeployment
+
+        - !If
+          - DeployStageCondition
+          - Actions:
+            - Name: DeployStageApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: 1
+                Provider: Manual
+              RunOrder: 1 
+            - ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_IAM
+                ParameterOverrides: !Join 
+                  - ''
+                  - - '{'
+                    - '"Cluster"'
+                    - ':'
+                    - '"'
+                    - !Ref StageDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"InfraStackName"'
+                    - ':'
+                    - '"'
+                    - !Ref StageDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"FargateTaskSize"'
+                    - ':'
+                    - '"'
+                    - !Ref DeployStage
+                    - '"'
+                    - ','
+                    - '"GhostImage"'
+                    - ':'
+                    - >-
+                      {"Fn::GetParam" :
+                      ["BuildOutput","images.json","imageUri"]}
+                    - '}'
+                RoleArn: !GetAtt 
+                  - CloudFormationServiceRole
+                  - Arn
+                StackName: !Sub '${StageDeploymentPrefix}-fargete'
+                TemplatePath: 'BuildOutput::fargate-deployment.yaml'
+              InputArtifacts:
+                - Name: BuildOutput
+              Name: DeployToStage
+              RunOrder: 2
+            Name: GhostStageDeployment
+          - !Ref AWS::NoValue
+
+        - !If
+          - DeployProdCondition
+          - Actions:
+            - Name: DeployProdApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: 1
+                Provider: Manual
+              RunOrder: 1
+            - ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_IAM
+                ParameterOverrides: !Join 
+                  - ''
+                  - - '{'
+                    - '"Cluster"'
+                    - ':'
+                    - '"'
+                    - !Ref ProdDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"InfraStackName"'
+                    - ':'
+                    - '"'
+                    - !Ref ProdDeploymentPrefix
+                    - '"'
+                    - ','
+                    - '"FargateTaskSize"'
+                    - ':'
+                    - '"'
+                    - !Ref DeployProd
+                    - '"'
+                    - ','
+                    - '"GhostImage"'
+                    - ':'
+                    - >-
+                      {"Fn::GetParam" :
+                      ["BuildOutput","images.json","imageUri"]}
+                    - '}'
+                RoleArn: !GetAtt 
+                  - CloudFormationServiceRole
+                  - Arn
+                StackName: !Sub '${ProdDeploymentPrefix}-fargete'
+                TemplatePath: 'BuildOutput::fargate-deployment.yaml'
+              InputArtifacts:
+                - Name: BuildOutput
+              Name: DeployToProduction
+              RunOrder: 2    
+            Name: GhostProdDeployment
+          - !Ref AWS::NoValue
+    Type: 'AWS::CodePipeline::Pipeline'
+  GhostPipelineBucket:
+    Type: 'AWS::S3::Bucket'
+
+  BuildSecurityGroup:
+    Properties:
+      GroupDescription: Ghost Build Security Group.
+      VpcId: !ImportValue 
+        'Fn::Sub': '${DevDeploymentPrefix}-BuildVPC'
+    Type: 'AWS::EC2::SecurityGroup'
+
+  CodeBuildServiceRolePolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: CloudWatchLogsPolicy
+          - Action:
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: S3GetObjectPolicy
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: S3PutObjectPolicy
+          - Action:
+              - 'ecr:GetAuthorizationToken'
+            Effect: Allow
+            Resource:
+              - '*'
+          - Action:
+              - 'ecr:*'
+            Effect: Allow
+            Resource:
+              - !Join 
+                - ''
+                - - 'arn:aws:ecr:'
+                  - !Ref 'AWS::Region'
+                  - ':'
+                  - !Ref 'AWS::AccountId'
+                  - ':repository/'
+                  - !Ref Repository
+          - Action:
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:DescribeDhcpOptions'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DeleteNetworkInterface'
+              - 'ec2:DescribeSubnets'
+              - 'ec2:DescribeSecurityGroups'
+              - 'ec2:DescribeVpcs'
+            Effect: Allow
+            Resource: '*'
+          - Action:
+              - 'ec2:CreateNetworkInterfacePermission'
+            Effect: Allow
+            Resource: '*'
+        Version: 2012-10-17
+      PolicyName: CodeBuildServiceRolePolicy
+      Roles:
+        - !Ref InstanceRole
+    Type: 'AWS::IAM::Policy'
+  GhostBuildOutput:
+    Type: 'AWS::S3::Bucket'
+  GhostContainerBuildProject:
+    DependsOn: CodeBuildServiceRolePolicy
+    Properties:
+      Artifacts:
+        Location: !Ref GhostBuildOutput
+        Name: artifacts
+        Type: S3
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref 'AWS::AccountId'
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref Repository
+          - Name: IMAGE_TAG
+            Value: latest
+        Image: 'aws/codebuild/docker:17.09.0'
+        PrivilegedMode: 'true'
+        Type: LINUX_CONTAINER
+      Name: !Sub  "${AWS::StackName}-build"
+      ServiceRole: !Ref InstanceRole
+      Source:
+        BuildSpec: pipelines/buildspec.yaml
+        Location: !Sub 'https://github.com/${GitHubOwner}/${GitHubRepoGhost}.git'
+        Type: GITHUB
+        Auth:
+          Type: OAUTH
+          Resource: !Ref GitHubOwnerToken
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref BuildSecurityGroup
+        Subnets:
+          - !ImportValue 
+            'Fn::Sub': '${DevDeploymentPrefix}-BuildSubnet'
+          - !ImportValue 
+            'Fn::Sub': '${DevDeploymentPrefix}-BuildSubnet2'
+        VpcId: !ImportValue 
+          'Fn::Sub': '${DevDeploymentPrefix}-BuildVPC'
+    Type: 'AWS::CodeBuild::Project'
+  InstanceRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+    Type: 'AWS::IAM::Role'
+
+
+  PipelineWebhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOwnerToken
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: 'refs/heads/{Branch}'
+      TargetPipeline: !Ref GhostPipeline
+      TargetAction: CodeRepo
+      Name: !Sub "${AWS::StackName}-Webhook2"
+      TargetPipelineVersion: !GetAtt GhostPipeline.Version
+      RegisterWithThirdParty: true
+
+Outputs:
+  InitPipelineWebhookURL:
+    Value: !GetAtt PipelineWebhook.Url
+  RepositoryURL:
+    Description: The docker repository URL
+    Value: !Join 
+      - ''
+      - - !Ref 'AWS::AccountId'
+        - .dkr.ecr.
+        - !Ref 'AWS::Region'
+        - .amazonaws.com/
+        - !Ref Repository  

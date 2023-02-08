@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: 2010-09-09
+Outputs:
+  ALBURL:
+    Description: URL of the ALB
+    Export:
+      Name: !Sub '${AWS::StackName}-ALBURL'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.ALBURL
+
+  ENVPREFIX:
+    Description: Env Prefix
+    Export:
+      Name: !Sub '${AWS::StackName}-ENVPREFIX'
+    Value: !Ref EnvPrefix
+  FARGATETASKSIZE:
+    Description: Env Prefix
+    Export:
+      Name: !Sub '${AWS::StackName}-FARGATETASKSIZE'
+    Value: !Ref FargateTaskSize
+  DBSECRETPARAMUSER:
+    Description: RDS DB User
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRETPARAMUSER'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.DBSECRETPARAMUSER
+  DBSECRETPARAMPASS:
+    Description: RDS DB Secret
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRETPARAMPASS'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.DBSECRETPARAMPASS   
+  DBSECRET:
+    Description: RDS DB Secret
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRET'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.DBSECRET
+
+  ALBTGNAME:
+    Description: Name of the ALB Target Group
+    Export:
+      Name: !Sub '${AWS::StackName}-ALBTGNAME'
+    Value: !GetAtt
+      - ALBDB 
+      - Outputs.ALBTGNAME
+
+  GHOSTURL:
+    Description: Ghost env url
+    Export:
+      Name: !Sub '${AWS::StackName}-GHOSTURL'
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !Ref EnvDomainName
+
+  GhostDBHost:
+    Description: FQDN of the Ghost DB.
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostDBHost'
+    Value: !GetAtt
+      - ALBDB  
+      - Outputs.GhostDBHost
+  GhostLogGroupName:
+    Description: Name of Ghost Log Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostLogGroupName'
+    Value: !GetAtt
+      - ALBDB  
+      - Outputs.GhostLogGroupName
+  GhostSG:
+    Description: ID of the Ghost Security Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostSG'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.GhostSG
+  GhostTG:
+    Description: ARN of the Ghost Target Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostTG'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.GhostTG
+  Subnet1:
+    Description: ID of the first Subnet to use
+    Export:
+      Name: !Sub '${AWS::StackName}-Subnet1'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.Subnet1
+
+  Subnet2:
+    Description: ID of the first Subnet to use
+    Export:
+      Name: !Sub '${AWS::StackName}-Subnet2'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.Subnet2
+
+  TaskExecutionRoleArn:
+    Description: Task Execution Role Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TaskExecutionRoleArn'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.TaskExecutionRoleArn
+  TaskRoleArn:
+    Description: Task Role Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TaskRoleArn'
+    Value: !GetAtt 
+      - ALBDB
+      - Outputs.TaskRoleArn 
+  BuildSubnet: 
+    Export:
+      Name: !Sub '${AWS::StackName}-BuildSubnet'
+    Value: !GetAtt 
+      - VPCStack
+      - Outputs.PrivateSubnet1AID
+  BuildSubnet2: 
+    Export:
+      Name: !Sub '${AWS::StackName}-BuildSubnet2'
+    Value: !GetAtt 
+    - VPCStack
+    - Outputs.PrivateSubnet2AID
+  BuildVPC: 
+    Export:
+      Name: !Sub '${AWS::StackName}-BuildVPC'
+    Value: !GetAtt 
+    - VPCStack
+    - Outputs.VPCID
+
+Parameters:
+  FargateTaskSize:
+    AllowedValues:
+      - 'small'
+      - 'medium'
+      - 'large'
+    Type: String
+  DnsHostedZoneID:
+    Description: An Amazon Route 53 hosted zone ID
+    Type: AWS::Route53::HostedZone::Id
+  AcmCertificateArn:
+    Description: ACM certificate ARN
+    Type: String
+    AllowedPattern : ".+"    
+  EnvPrefix:
+    Description: Env Prefix
+    Type: String
+  EnvDomainName:
+    Type: String
+    Default: blog.otk.ninja
+  DeployCloudFront:
+    Description: Whether to deploy CloudFront
+    Type: String 
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: 'false'
+  CloudFormationS3Bucket:
+    Description: cloudformation Templates bucket
+    Type: String
+  InitStackName:
+    Description: Init cloudformation Stack name
+    Type: String
+  InitStackID:
+    Type: String
+  DBAllocatedStorage:
+    ConstraintDescription: must be between 5 and 1024 GB.
+    Default: '5'
+    Description: The size of the database (GB)
+    MaxValue: '1024'
+    MinValue: '5'
+    Type: Number
+  DBClass:
+    AllowedValues:
+      - db.t2.small
+      - db.t2.large
+      - db.t2.xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m2.2xlarge
+    ConstraintDescription: must select a valid database instance type.
+    Default: db.t2.small
+    Description: Database instance class
+    Type: String
+  MysqlUser:
+    Default: 'ghost'
+    Type: String
+    Description: MySQL RDS username
+  DBMultiAZ:
+    Default: 'false'
+    Type: String
+  KeypairName:
+    Description: The name of your EC2 KeyPair for SSH.
+    Type: 'AWS::EC2::KeyPair::KeyName'
+Resources:
+
+
+  ALBDB:
+    Properties:
+      Parameters:
+        ALBSubnet: !GetAtt 
+          - VPCStack
+          - Outputs.PublicSubnet1ID
+        ALBSubnet2: !GetAtt 
+          - VPCStack
+          - Outputs.PublicSubnet2ID
+        DBMultiAZ: !Ref DBMultiAZ
+        MysqlUser: !Ref MysqlUser
+        DBClass: !Ref DBClass
+        DBAllocatedStorage: !Ref DBAllocatedStorage
+        DnsHostedZoneID: !Ref DnsHostedZoneID
+        AcmCertificateArn: !Ref AcmCertificateArn
+        EnvDomainName: !Ref EnvDomainName
+        DeployCloudFront: !Ref DeployCloudFront
+        DBSubnet: !GetAtt 
+          - VPCStack
+          - Outputs.PrivateSubnet1AID
+        DBSubnet2: !GetAtt 
+          - VPCStack
+          - Outputs.PrivateSubnet2AID
+        DBVPC: !GetAtt 
+          - VPCStack
+          - Outputs.VPCID
+        EnvPrefix: !Ref EnvPrefix
+      TemplateURL: !Sub https://s3.amazonaws.com/${CloudFormationS3Bucket}/cloudformation/ALBDB.yaml
+    Type: 'AWS::CloudFormation::Stack'
+  ECSCluster:
+    Properties:
+      ClusterName: !Ref EnvPrefix
+    Type: 'AWS::ECS::Cluster'
+  VPCStack:
+    Properties:
+      Parameters:
+        AvailabilityZones: !Join 
+          - ''
+          - - !Ref 'AWS::Region'
+            - 'a,'
+            - !Ref 'AWS::Region'
+            - b
+        KeyPairName: !Ref KeypairName
+        NumberOfAZs: '2'
+      TemplateURL: !Sub https://s3.amazonaws.com/${CloudFormationS3Bucket}/cloudformation/vpc.yaml
+    Type: 'AWS::CloudFormation::Stack'

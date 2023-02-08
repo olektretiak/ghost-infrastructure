@@ -1,0 +1,18 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+  build:
+    commands:
+      - echo Build started on `date`
+      - cd serverless-python
+      - pip3 install requests -t .
+      - pip3 uninstall jwt
+      - pip3 uninstall PyJWT
+      - pip install PyJWT -t .
+      - zip -r cleanup-posts-lambda.zip .
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - aws s3 cp cleanup-posts-lambda.zip s3://$CRS3Bucket/

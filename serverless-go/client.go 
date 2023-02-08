@@ -1,0 +1,138 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/rs/zerolog/log"
+	"io"
+	"net/http"
+)
+
+const postsResourcePath = "/ghost/api/admin/posts"
+
+type BlogClient struct {
+	c         *http.Client
+	authToken string
+	apiDomain string
+}
+
+func NewBlogClient(apiDomain string, authToken string) *BlogClient {
+	return &BlogClient{
+		c:         http.DefaultClient,
+		authToken: authToken,
+		apiDomain: apiDomain,
+	}
+}
+
+func (c BlogClient) GetAllPostsIDs(ctx context.Context) ([]string, error) {
+	path := fmt.Sprintf("%s%s", c.apiDomain, postsResourcePath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		log.Err(err).Msg("creation request object error")
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Add("formats", "html,mobiledoc")
+	q.Add("limit", "all")
+	q.Add("filter", "slug: -tags")
+	req.URL.RawQuery = q.Encode()
+
+	req.Header.Set("Authorization", fmt.Sprintf("Ghost %s", c.authToken))
+
+	fields := map[string]interface{}{
+		"url": req.URL.String(),
+	}
+
+	log.Debug().Fields(fields).Msg("execution request to get posts list")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Err(err).Msg("request execution error")
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		fields := map[string]interface{}{
+			"received_status_code": resp.StatusCode,
+			"received_status":      resp.Status,
+		}
+
+		err = errors.New("getting posts list error")
+		log.Err(err).Fields(fields).Msg("received wrong status code from server")
+		return nil, err
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Err(err).Msg("reading body from response error")
+		return nil, err
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		log.Err(err).Msg("closing response body error")
+		return nil, err
+	}
+
+	var p postsListResponseBody
+	if err := json.Unmarshal(b, &p); err != nil {
+		log.Err(err).Msg("json unmarshalling error")
+		return nil, err
+	}
+
+	var ids []string
+	for _, op := range p.Posts {
+		ids = append(ids, op.ID)
+	}
+
+	return ids, nil
+}
+
+func (c BlogClient) DeletePosts(ctx context.Context, postsIDs []string) error {
+	for _, pid := range postsIDs {
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, fmt.Sprintf("%s%s/%s", c.apiDomain, postsResourcePath, pid), nil)
+		if err != nil {
+			log.Err(err).Msg("error building delete post request")
+			return err
+		}
+
+		req.Header.Set("Authorization", fmt.Sprintf("Ghost %s", c.authToken))
+
+		fields := map[string]interface{}{
+			"url":     req.URL.String(),
+			"post_id": pid,
+			"method":  req.Method,
+		}
+		log.Debug().Fields(fields).Msg("execution deletion post request")
+		resp, err := c.c.Do(req)
+		if err != nil {
+			log.Err(err).Msg("error execution delete post request")
+			return err
+		}
+
+		if resp.StatusCode != http.StatusNoContent {
+			fields := map[string]interface{}{
+				"received_status_code": resp.StatusCode,
+				"received_status":      resp.Status,
+				"post_id":              pid,
+			}
+
+			err = errors.New("deletion post error")
+			log.Err(err).Fields(fields).Msg("received wrong status code from server")
+			return err
+		}
+	}
+
+	return nil
+}
+
+type postsListResponseBody struct {
+	Posts posts `json:"posts"`
+}
+
+type posts []post
+
+type post struct {
+	ID string `json:"id"`
+}

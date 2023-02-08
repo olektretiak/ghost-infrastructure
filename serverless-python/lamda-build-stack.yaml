@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  GitHubRepoInfrastructure:
+    Type: String
+  GitHubOwnerToken:
+    Type: String
+    NoEcho: true
+  GitHubOwner:
+    Type: String
+    Description: GitHub repo owner.
+    AllowedPattern: "[A-Za-z0-9-]+"
+  BuildSpec:
+    Type: String
+    Default: serverless-python/buildspec.yaml
+Resources:
+  CodeBuildServiceRolePolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: CloudWatchLogsPolicy
+          - Action:
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: S3GetObjectPolicy
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: S3PutObjectPolicy
+        Version: 2012-10-17
+      PolicyName: CodeBuildServiceRolePolicy
+      Roles:
+        - !Ref InstanceRole
+    Type: 'AWS::IAM::Policy'
+
+  ImageBuildProject:
+    DependsOn: InstanceRole
+    Properties:
+      Artifacts:
+        Location: !Ref CRS3Bucket
+        Name: artifacts
+        Type: S3
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: CRS3Bucket
+            Value: !Ref CRS3Bucket
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:4.0'
+        PrivilegedMode: 'true'
+        Type: LINUX_CONTAINER
+      Name: !Sub  "${AWS::StackName}-build"
+      ServiceRole: !Ref InstanceRole
+      Source:
+        BuildSpec: !Ref BuildSpec
+        Location: !Sub 'https://github.com/${GitHubOwner}/${GitHubRepoInfrastructure}.git'
+        Type: GITHUB
+        Auth:
+          Type: OAUTH
+          Resource: !Ref GitHubOwnerToken
+    Type: 'AWS::CodeBuild::Project'
+  CRS3Bucket:
+    Type: 'AWS::S3::Bucket'
+  InstanceRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+    Type: 'AWS::IAM::Role'
+
+#
+# Lambda CodeBUild Init
+#
+  CodeBuildInit:
+    DependsOn: CodeBuildInitFunction
+    Properties:
+      ProjectName: !Sub "${AWS::StackName}-build"
+      ServiceToken: !GetAtt 
+        - CodeBuildInitFunction
+        - Arn
+    Type: 'Custom::CodeBuildTrigger'
+
+
+  CodeBuildInitFunction:
+    DependsOn: LambdaPolicy
+    Properties:
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          import logging
+          import json
+          import time
+          from botocore.vendored import requests
+          
+          log = logging.getLogger()
+          log.setLevel(logging.INFO)
+          
+          SUCCESS = "SUCCESS"
+          FAILED = "FAILED"
+          
+          def handler(event, context):
+              build = {'projectName': event['ResourceProperties']['ProjectName']}
+              log.info("Event: " + str(event))
+            
+              if (event['RequestType'] == 'Delete'):
+                  response = send(event,context, SUCCESS, {}, None)
+                  return {'Response' : response}
+              else:
+                  try:
+                      client = boto3.client('codebuild')
+                      codebuildresponse = client.start_build(**build)
+                      log.info("CodeBuild Response: " + str(codebuildresponse))
+                      response = send(event,context, SUCCESS, {}, None)
+          
+                  except Exception as error:
+                      log.info("CodeBuild Exception: " + str(error))
+                      response = send(event, context, FAILED, {}, None)
+                      return {'Response' : response}
+
+          def send(event, context, responseStatus, responseData, physicalResourceId):
+              responseUrl = event['ResponseURL']
+
+              log.info("ResponseURL: " + responseUrl)
+
+              responseBody = {}
+              responseBody['Status'] = responseStatus
+              responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+              responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+              responseBody['StackId'] = event['StackId']
+              responseBody['RequestId'] = event['RequestId']
+              responseBody['LogicalResourceId'] = event['LogicalResourceId']
+              responseBody['Data'] = responseData
+
+              json_responseBody = json.dumps(responseBody)
+
+              log.info("Response body: " + str(json_responseBody))
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_responseBody))
+              }
+
+              try:
+                  response = requests.put(responseUrl,
+                                          data=json_responseBody,
+                                          headers=headers)
+                  log.info("Status code: " + str(response.reason))
+                  return SUCCESS
+              except Exception as e:
+                  log.error("send(..) failed executing requests.put(..): " + str(e))
+                  return FAILED
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - LambdaExecutionRole
+        - Arn
+      Runtime: python3.7
+      Timeout: '180'
+    Type: 'AWS::Lambda::Function'
+  LambdaExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+    Type: 'AWS::IAM::Role'
+  LambdaPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'lambda:UpdateFunctionCode'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: UpdateFunctionCodePolicy
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: CloudWatchLogsPolicy
+          - Action:
+              - 'codebuild:StartBuild'
+            Effect: Allow
+            Resource:
+              - '*'
+            Sid: CodeBuildPolicy
+        Version: 2012-10-17
+      PolicyName: LambdaPolicy
+      Roles:
+        - !Ref LambdaExecutionRole
+    Type: 'AWS::IAM::Policy'
+
+Outputs:
+  OutputBucket:
+    Export:
+      Name: !Sub '${AWS::StackName}-CRS3Bucket'
+    Description: Build output of Lambda dependecies
+    Value: !Ref CRS3Bucket

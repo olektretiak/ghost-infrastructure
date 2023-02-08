@@ -1,0 +1,507 @@
+AWSTemplateFormatVersion: 2010-09-09
+Outputs:
+  ENVPREFIX:
+    Description: Env Prefix
+    Export:
+      Name: !Sub '${AWS::StackName}-ENVPREFIX'
+    Value: !Ref EnvPrefix
+  DBSECRETPARAMPASS:
+    Description: RDS DB Secret
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRETPARAMPASS'
+    Value: !Ref MySQLPasswordParameterStore
+
+
+  DBSECRETPARAMUSER:
+    Description: RDS DB User
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRETPARAMUSER'
+    Value: !Ref MySQLUsernameParameterStore
+
+  DBSECRET:
+    Description: RDS DB Secret
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSECRET'
+    Value: !Ref MySQLSecret
+  ALBTGNAME:
+    Description: Name of the ALB Target Group
+    Export:
+      Name: !Sub '${AWS::StackName}-ALBTGNAME'
+    Value: !GetAtt 
+      - GhostTargetGroup
+      - TargetGroupName
+  GHOSTURL:
+    Description: Ghost env url
+    Export:
+      Name: !Sub '${AWS::StackName}-GHOSTURL'
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !Ref EnvDomainName
+  ALBURL:
+    Description: URL of the ALB
+    Export:
+      Name: !Sub '${AWS::StackName}-ALBURL'
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - GhostALB
+          - DNSName
+  GhostDBHost:
+    Description: FQDN of the Ghost DB.
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostDBHost'
+    Value: !GetAtt 
+      - GhostDB
+      - Endpoint.Address
+  GhostLogGroupName:
+    Description: Name of Ghost Log Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostLogGroupName'
+    Value: !Ref GhostLogGroup
+  GhostSG:
+    Description: ID of the Ghost Security Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostSG'
+    Value: !GetAtt 
+      - GhostHostSecurityGroup
+      - GroupId
+  GhostTG:
+    Description: ARN of the Ghost Target Group
+    Export:
+      Name: !Sub '${AWS::StackName}-GhostTG'
+    Value: !Ref GhostTargetGroup
+  StackName:
+    Description: Name of this Stack
+    Export:
+      Name: !Sub '${AWS::StackName}-StackName'
+    Value: !Ref 'AWS::StackName'
+  Subnet1:
+    Description: ID of the first Subnet to use
+    Export:
+      Name: !Sub '${AWS::StackName}-Subnet1'
+    Value: !Ref DBSubnet
+  Subnet2:
+    Description: ID of the first Subnet to use
+    Export:
+      Name: !Sub '${AWS::StackName}-Subnet2'
+    Value: !Ref DBSubnet2
+  TaskExecutionRoleArn:
+    Description: Task Execution Role Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TaskExecutionRoleArn'
+    Value: !GetAtt 
+      - TaskExecutionRole
+      - Arn
+  TaskRoleArn:
+    Description: Task Role Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TaskRoleArn'
+    Value: !GetAtt 
+      - TaskRole
+      - Arn
+Parameters:
+  EnvDomainName:
+    Type: String
+  DnsHostedZoneID:
+    Description: An Amazon Route 53 hosted zone ID
+    Type: AWS::Route53::HostedZone::Id
+  EnvPrefix:
+    Description: Env Prefix
+    Type: String
+  AcmCertificateArn:
+    Description: ACM certificate ARN
+    Type: String
+    AllowedPattern : ".+"    
+  DeployCloudFront:
+    Description: Whether to deploy CloudFront
+    Type: String 
+    AllowedValues:
+      - "true"
+      - "false"
+  ALBSubnet:
+    Description: A Public VPC subnet ID for the ALB.
+    Type: 'AWS::EC2::Subnet::Id'
+  ALBSubnet2:
+    Description: A 2nd Public VPC subnet ID for the ALB.
+    Type: 'AWS::EC2::Subnet::Id'
+  DBAllocatedStorage:
+    ConstraintDescription: must be between 5 and 1024Gb.
+    Default: '5'
+    Description: The size of the database (Gb)
+    MaxValue: '1024'
+    MinValue: '5'
+    Type: Number
+  DBClass:
+    AllowedValues:
+      - db.t2.small
+      - db.t2.large
+      - db.t2.xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m2.2xlarge
+    ConstraintDescription: must select a valid database instance type.
+    Default: db.t2.small
+    Description: Database instance class
+    Type: String
+  DBMultiAZ:
+    Default: 'false'
+    Description: Should the RDS be MultiAZ (True/False)
+    Type: String
+  MysqlUser:
+    Default: 'ghost'
+    Type: String
+    Description: MySQL RDS username
+  DBSubnet:
+    Description: A VPC subnet ID for the DB.
+    Type: 'AWS::EC2::Subnet::Id'
+  DBSubnet2:
+    Description: A 2nd VPC subnet ID for the DB.
+    Type: 'AWS::EC2::Subnet::Id'
+  DBVPC:
+    Description: A VPC subnet ID for the DB.
+    Type: 'AWS::EC2::VPC::Id'
+
+
+Conditions:
+  DeployCloudFrontCondition: !Not 
+    - !Equals 
+      - !Ref DeployCloudFront
+      - 'false'
+  DeployWithoutCloudFrontCondition: !Equals 
+      - !Ref DeployCloudFront
+      - 'false'
+Resources:
+  ALBSecurityGroup:
+    Properties:
+      GroupDescription: Ghost ALB Security Group
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+        - CidrIp: 0.0.0.0/0
+          FromPort: '443'
+          IpProtocol: tcp
+          ToPort: '443'
+      VpcId: !Ref DBVPC
+    Type: 'AWS::EC2::SecurityGroup'
+  DBSecurityGroup:
+    Properties:
+      GroupDescription: Security group for RDS DB Instance.
+      SecurityGroupIngress:
+        - FromPort: '3306'
+          IpProtocol: tcp
+          SourceSecurityGroupId: !GetAtt 
+            - GhostHostSecurityGroup
+            - GroupId
+          ToPort: '3306'
+      VpcId: !Ref DBVPC
+    Type: 'AWS::EC2::SecurityGroup'
+  DBSubnetGroup:
+    Properties:
+      DBSubnetGroupDescription: Subnets available for the RDS DB Instance
+      SubnetIds:
+        - !Ref DBSubnet
+        - !Ref DBSubnet2
+    Type: 'AWS::RDS::DBSubnetGroup'
+  FargateExecutionPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 'ecr:GetAuthorizationToken'
+              - 'ecr:BatchCheckLayerAvailability'
+              - 'ecr:GetDownloadUrlForLayer'
+              - 'ecr:BatchGetImage'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+              - 'secretsmanager:GetSecretValue'
+              - 'kms:Decrypt'
+              - 'kms:DescribeKey'
+              - 'ssm:GetParameters'
+            Effect: Allow
+            Resource:
+              - '*'
+        Version: 2012-10-17
+      PolicyName: fargate-execution
+      Roles:
+        - !Ref TaskExecutionRole
+    Type: 'AWS::IAM::Policy'
+  GhostALB:
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref ALBSubnet
+        - !Ref ALBSubnet2
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+
+  GhostCDN:
+    Condition: DeployCloudFrontCondition
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref EnvDomainName
+        CacheBehaviors:
+        - PathPattern: images/*
+          AllowedMethods:
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          DefaultTTL: 900
+          MaxTTL: 900
+          MinTTL: 900
+          ForwardedValues:
+            QueryString: true
+            Headers:
+            - Host
+          TargetOriginId: elb
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+        Comment: !Ref 'AWS::StackName'
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          DefaultTTL: 0
+          MaxTTL: 0
+          MinTTL: 0
+          ForwardedValues:
+            QueryString: true
+            Headers:
+            - '*'
+            Cookies:
+              Forward: all
+          TargetOriginId: elb
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+        Enabled: true
+        Origins:
+        - DomainName: !GetAtt 'GhostALB.DNSName'
+          Id: elb
+          CustomOriginConfig:
+            OriginProtocolPolicy: https-only
+            OriginSSLProtocols: 
+              - TLSv1
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        HttpVersion: http2
+
+  CloudFrontDNS:
+    Condition: DeployCloudFrontCondition
+    DependsOn:
+      - GhostCDN  
+    Type: 'AWS::Route53::RecordSetGroup'
+    Properties:
+      HostedZoneId: !Ref DnsHostedZoneID
+      RecordSets:
+        - Name: !Ref EnvDomainName
+          Type: A
+          AliasTarget:
+            HostedZoneId: Z2FDTNDATAQYW2 # MAGIC NUMBER DO NOT CHANGE IT 
+            DNSName: !GetAtt 
+              - GhostCDN
+              - DomainName
+
+  ALBDNS:
+    Condition: DeployWithoutCloudFrontCondition
+    DependsOn:
+      - GhostALB 
+    Type: 'AWS::Route53::RecordSetGroup'
+    Properties:
+      HostedZoneId: !Ref DnsHostedZoneID
+      RecordSets:
+        - Name: !Ref EnvDomainName
+          Type: A
+          AliasTarget:
+            HostedZoneId: !GetAtt 'GhostALB.CanonicalHostedZoneID'
+            DNSName: !GetAtt 'GhostALB.DNSName'
+
+
+  MySQLSecretKey:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Statement:
+          - Sid: "Enable IAM User Permissions"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: "kms:*"
+            Resource: "*"
+
+
+  MySQLSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      KmsKeyId: !Ref MySQLSecretKey
+      GenerateSecretString:
+        SecretStringTemplate: !Join [ '', [ '{"username": "', !Ref MysqlUser, '"}' ] ]
+        GenerateStringKey: 'password'
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+        ExcludePunctuation: true
+
+
+  MySQLPasswordParameterStore:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/databases/mysql/${EnvPrefix}/password'
+      Type: String
+      Value: !Join [ '', [ '{{resolve:secretsmanager:', !Ref MySQLSecret, ':SecretString:password}}' ] ]
+      Description: RDS PASSWORD SSM Parameter for running ECS task.
+      Tags:
+        Environment: !Ref EnvPrefix
+  MySQLUsernameParameterStore:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/databases/mysql/${EnvPrefix}/username'
+      Type: String
+      Value: !Join [ '', [ '{{resolve:secretsmanager:', !Ref MySQLSecret, ':SecretString:username}}' ] ]
+      Description: RDS Username SSM Parameter for running ECS task.
+      Tags:
+        Environment: !Ref EnvPrefix
+
+  GhostDB:
+    Properties:
+      AllocatedStorage: !Ref DBAllocatedStorage
+      DBInstanceClass: !Ref DBClass
+      DBName: ghost
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: MySQL
+      EngineVersion: 8.0.28
+      KmsKeyId: !Ref rdskmskey
+      MasterUserPassword: !Join [ '', [ '{{resolve:secretsmanager:', !Ref MySQLSecret, ':SecretString:password}}' ] ]
+      MasterUsername: !Ref MysqlUser
+      MultiAZ: !Ref DBMultiAZ
+      StorageEncrypted: 'true'
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+    Type: 'AWS::RDS::DBInstance'
+  GhostHostSecurityGroup:
+    Properties:
+      GroupDescription: Ghost ECS Security Group.
+      SecurityGroupIngress:
+        - FromPort: '2368'
+          IpProtocol: tcp
+          SourceSecurityGroupId: !GetAtt 
+            - ALBSecurityGroup
+            - GroupId
+          ToPort: '2368'
+      VpcId: !Ref DBVPC
+    Type: 'AWS::EC2::SecurityGroup'
+  GhostLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+  GhostTargetGroup:
+    Properties:
+      HealthCheckIntervalSeconds: '30'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: '10'
+      HealthyThresholdCount: '4'
+      Matcher:
+        HttpCode: '200,301'
+      Port: 2368
+      Protocol: HTTP
+      TargetType: ip
+      UnhealthyThresholdCount: '3'
+      VpcId: !Ref DBVPC
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+
+  Listener:
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref GhostTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref GhostALB
+      Port: '80'
+      Protocol: HTTP
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+  
+  HttpsListener:
+    # Condition: DeployWithoutCloudFrontCondition
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref GhostTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref GhostALB
+      Port: '443'
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref AcmCertificateArn
+
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+  TaskExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+    Type: 'AWS::IAM::Role'
+  TaskRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+    Type: 'AWS::IAM::Role'
+  rdskmskey:
+    Properties:
+      Description: Key for encrypting the RDS
+      KeyPolicy:
+        Statement:
+          - Action:
+              - 'kms:*'
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Resource: '*'
+            Sid: Allow full administration of the key by the root account
+          - Action:
+              - 'kms:Encrypt'
+              - 'kms:Decrypt'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey*'
+              - 'kms:CreateGrant'
+              - 'kms:DescribeKey'
+            Condition:
+              StringEquals:
+                'kms:CallerAccount': !Ref 'AWS::AccountId'
+                'kms:ViaService': !Join 
+                  - ''
+                  - - rds.
+                    - !Ref 'AWS::Region'
+                    - .amazonaws.com
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Resource: '*'
+            Sid: >-
+              Allow access through RDS for all principals in the account that
+              are authorized to use RDS
+        Version: 2012-10-17
+    Type: 'AWS::KMS::Key'
