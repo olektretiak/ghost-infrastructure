@@ -341,7 +341,7 @@ The best way is to go to the AWS console to upload the template [ghost-init-all.
 
 Some important information to read before applying the template: 
 1. By default, it will rollout development infrastructure. If you whether to deploy the Stage or Production, please make sure that you select it.
-2. Make sure you selected the correct DB allocation and class.
+2. Make sure you selected the correct DB allocation, and class, and instace size.
 3. By Default, DBMultiAZ is enabled only for the production environment.
 
 
