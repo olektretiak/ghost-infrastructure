@@ -77,6 +77,14 @@ Of this fact, the use of AWS CloudFront will be a good solution. Ghost should be
     ├── lambda-cleanup-stack.yaml
     └── lamda-build-stack.yaml
 ```
+
+
+### Ghost pipeline Diagram
+
+
+<img src="images/Ghost-pipeline.png"  width="1000" height="600">
+
+
 ### Ghost Init all stack
 
 Source: [ghost-init-all.yaml](ghost-init-all.yaml)
