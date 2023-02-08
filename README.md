@@ -82,7 +82,7 @@ Of this fact, the use of AWS CloudFront will be a good solution. Ghost should be
 ### Ghost pipeline Diagram
 
 
-<img src="images/Ghost-pipeline.png"  width="1000" height="600">
+<img src="images/Ghost-pipeline.png"  width="1000" height="800">
 
 
 ### Ghost Init all stack
