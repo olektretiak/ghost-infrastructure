@@ -169,14 +169,14 @@ Parameters:
     Type: Number
   DevDBClass:
     AllowedValues:
-      - db.t2.small
-      - db.t2.large
-      - db.t2.xlarge
-      - db.m4.large
-      - db.m4.xlarge
-      - db.m2.2xlarge
+      - db.t4g.micro
+      - db.t4g.small
+      - db.t4g.medium
+      - db.t4g.large
+      - db.t4g.xlarge
+      - db.t4g.2xlarge
     ConstraintDescription: must select a valid database instance type.
-    Default: db.t2.small
+    Default: db.t4g.micro
     Description: Database instance class
     Type: String
   DevDBMultiAZ:
@@ -231,14 +231,14 @@ Parameters:
 
   StageDBClass:
     AllowedValues:
-      - db.t2.small
-      - db.t2.large
-      - db.t2.xlarge
-      - db.m4.large
-      - db.m4.xlarge
-      - db.m2.2xlarge
+      - db.t4g.micro
+      - db.t4g.small
+      - db.t4g.medium
+      - db.t4g.large
+      - db.t4g.xlarge
+      - db.t4g.2xlarge
     ConstraintDescription: must select a valid database instance type.
-    Default: db.t2.small
+    Default: db.t4g.micro
     Description: Database instance class
     Type: String
 
