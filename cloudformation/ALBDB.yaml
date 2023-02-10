@@ -134,15 +134,6 @@ Parameters:
     MinValue: '5'
     Type: Number
   DBClass:
-    AllowedValues:
-      - db.t2.small
-      - db.t2.large
-      - db.t2.xlarge
-      - db.m4.large
-      - db.m4.xlarge
-      - db.m2.2xlarge
-    ConstraintDescription: must select a valid database instance type.
-    Default: db.t2.small
     Description: Database instance class
     Type: String
   DBMultiAZ:
@@ -391,7 +382,7 @@ Resources:
       MasterUsername: !Ref MysqlUser
       MultiAZ: !Ref DBMultiAZ
       StorageEncrypted: 'true'
-      StorageType: gp2
+      StorageType: gp3
       VPCSecurityGroups:
         - !Ref DBSecurityGroup
     Type: 'AWS::RDS::DBInstance'

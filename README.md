@@ -32,6 +32,8 @@ Before continuing you will need to ensure you have the following prerequisites:
 * SSL Cerrtificate stored in the AWS Certificate Manager (https://docs.aws.amazon.com/acm/latest/userguide/gs.html)
 > Use wiledcard for Multi-environments
 * GitHub user token (https://github.com/settings/tokens)
+* https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html
+* Key pair (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html)
 
 ---
 
@@ -41,7 +43,7 @@ Before continuing you will need to ensure you have the following prerequisites:
 #### Architecture decisions:
 
 * Initial read of the Ghost documentation pointed me to the following fact:
-Ghost doesn’t support load-balanced clustering or multi-server setups of any description, there should only be one Ghost instance per site. 
+Ghost doesn’t support load-balanced clustering or multi-server setups of any description, there should only be one Ghost instance per site. More information at https://ghost.org/docs/faq/clustering-sharding-multi-server/
 Of this fact, the use of AWS CloudFront will be a good solution. Ghost should be deployed using a custom storage adapter to store Images on S3 (Not Implemented)
 
 * In the beginning, I thought of using AWS proton as it provides many benefits. Then I realize that the use of AWS proton might have been overkill for the team as nobody has experience how in using it, and it can take time to learn. 
