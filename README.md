@@ -366,7 +366,7 @@ Some important information to read before applying the template:
 * InfraExecutionRole - allow only needed resours usage as now it uses 'arn:aws:iam::aws:policy/AdministratorAccess'
 * Implement git branching stratagy on git repositories and CI/CD
 * Move Production deploymnt to separated AWS account
-* AWS Multi-Region ECS Cluster, AWS Multi-Region RDS read replica
+* AWS Multi-Region ECS Cluster, AWS Multi-Region RDS read replica (DR)
  
 
 ---

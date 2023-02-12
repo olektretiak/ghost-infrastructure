@@ -413,6 +413,13 @@ Resources:
       TargetType: ip
       UnhealthyThresholdCount: '3'
       VpcId: !Ref DBVPC
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 10
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
 
   Listener:
