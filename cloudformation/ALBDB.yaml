@@ -286,7 +286,7 @@ Resources:
           CustomOriginConfig:
             OriginProtocolPolicy: https-only
             OriginSSLProtocols: 
-              - TLSv1
+              - SSLv3
         PriceClass: PriceClass_100
         ViewerCertificate:
           AcmCertificateArn: !Ref AcmCertificateArn
