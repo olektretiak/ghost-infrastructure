@@ -161,11 +161,11 @@ Parameters:
     Description: MySQL RDS username
 
   DevDBAllocatedStorage:
-    ConstraintDescription: must be between 5 and 1024 GB.
-    Default: '5'
+    ConstraintDescription: (gp3) Minimum 20 GiB. Maximum 16,384 GiB
+    Default: '20'
     Description: The size of the database (GB)
-    MaxValue: '1024'
-    MinValue: '5'
+    MaxValue: '16384'
+    MinValue: '20'
     Type: Number
   DevDBClass:
     AllowedValues:
@@ -222,11 +222,11 @@ Parameters:
     Description: MySQL RDS username
 
   StageDBAllocatedStorage:
-    ConstraintDescription: must be between 5 and 1024 GB.
-    Default: '5'
+    ConstraintDescription: (gp3) Minimum 20 GiB. Maximum 16,384 GiB
+    Default: '20'
     Description: The size of the database (GB)
-    MaxValue: '1024'
-    MinValue: '5'
+    MaxValue: '16384'
+    MinValue: '20'
     Type: Number
 
   StageDBClass:
@@ -283,11 +283,11 @@ Parameters:
     Type: String
     Description: MySQL RDS username
   ProdDBAllocatedStorage:
-    ConstraintDescription: must be between 5 and 1024 GB.
-    Default: '5'
+    ConstraintDescription: (gp3) Minimum 20 GiB. Maximum 16,384 GiB
+    Default: '20'
     Description: The size of the database (GB)
-    MaxValue: '1024'
-    MinValue: '5'
+    MaxValue: '16384'
+    MinValue: '20'
     Type: Number
   ProdDBClass:
     AllowedValues:

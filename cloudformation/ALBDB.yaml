@@ -127,11 +127,11 @@ Parameters:
     Description: A 2nd Public VPC subnet ID for the ALB.
     Type: 'AWS::EC2::Subnet::Id'
   DBAllocatedStorage:
-    ConstraintDescription: must be between 5 and 1024Gb.
-    Default: '5'
-    Description: The size of the database (Gb)
-    MaxValue: '1024'
-    MinValue: '5'
+    ConstraintDescription: (gp3) Minimum 20 GiB. Maximum 16,384 GiB
+    Default: '20'
+    Description: The size of the database (GB)
+    MaxValue: '16384'
+    MinValue: '20'
     Type: Number
   DBClass:
     Description: Database instance class

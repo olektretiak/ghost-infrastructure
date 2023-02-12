@@ -170,11 +170,11 @@ Parameters:
   InitStackID:
     Type: String
   DBAllocatedStorage:
-    ConstraintDescription: must be between 5 and 1024 GB.
-    Default: '5'
+    ConstraintDescription: (gp3) Minimum 20 GiB. Maximum 16,384 GiB
+    Default: '20'
     Description: The size of the database (GB)
-    MaxValue: '1024'
-    MinValue: '5'
+    MaxValue: '16384'
+    MinValue: '20'
     Type: Number
   DBClass:
     Description: Database instance class
