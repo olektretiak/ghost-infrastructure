@@ -1,4 +1,3 @@
-
 # Ghost on AWS Fargate using CloudFormation
 
 ---
