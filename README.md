@@ -1,6 +1,4 @@
-Sure, I've incorporated your provided content and organized it into a formatted Markdown document. Here's the updated README.md:
 
-```markdown
 # Ghost on AWS Fargate using CloudFormation
 
 ---
