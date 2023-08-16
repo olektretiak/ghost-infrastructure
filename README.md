@@ -160,3 +160,53 @@ Details of parameters required for the `ghost-init-all` stack:
 1. BuildArtifactBucketName: Name for the S3 bucket to store infrastructure pipeline artifacts.
 2. TemplatesS3BucketName: Name for the S3 bucket to store Ghost project CloudFormation templates.
 3. GitHubToken: GitHub user token
+
+ for source control integration.
+4. StageEnvironment: Set to true to create a stage environment.
+5. ProductionEnvironment: Set to true to create a production environment.
+6. DefaultRegion: Default AWS region for the stack.
+7. GhostRepoUrl: URL of the Ghost development repository.
+
+---
+
+### How to deploy
+
+The best way is to go to the AWS console to upload the template [ghost-init-all.yaml](ghost-init-all.yaml) as it has many variables.
+
+Some important information to read before applying the template:
+1. By default, it will roll out the development infrastructure. If you want to deploy to Stage or Production, make sure to select the corresponding options.
+2. Make sure to select the correct DB allocation, class, and instance size.
+3. DBMultiAZ is enabled only for the production environment.
+
+---
+
+### Recommendations
+
+- Implement AWS WAF and AWS Shield for production. <span style="color:red">DO NOT APPLY IT FOR TESTING</span>
+
+---
+
+### Next steps to do
+
+- Integrate secure image storage into Ghost using Amazon S3 with a custom storage adapter.
+- Restrict permissions for InfraExecutionRole (currently uses 'arn:aws:iam::aws:policy/AdministratorAccess').
+- Implement git branching strategy for repositories and CI/CD.
+- Move production deployment to a separate AWS account.
+- Implement AWS Multi-Region ECS Cluster and RDS read replica for disaster recovery.
+
+---
+
+### Potential improvements
+
+- Implement RDS Multi-Region backup for disaster recovery.
+- Add IAM auth to RDS and implement secret rotation.
+- Switch to AWS Secrets Manager for secrets management.
+- Tune AWS CloudFront parameters and configure logs.
+
+---
+
+### Authors
+
+Oleksandr Tretiak
+
+---
